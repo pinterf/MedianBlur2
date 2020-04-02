@@ -131,13 +131,13 @@ class MedianProcessor
         }
     }
 
-      static MB_FORCEINLINE void zero_single_bin_c(T* a) {
+    static MB_FORCEINLINE void zero_single_bin_c(T* a) {
         for (int i = 0; i < histogram_refining_part_size; ++i) {
             a[i] = 0;
         }
     }
 
-      static MB_FORCEINLINE void add_16_bins_coarse_sse2(T* a, const T* b) {
+    static MB_FORCEINLINE void add_16_bins_coarse_sse2(T* a, const T* b) {
       for (int i = 0; i < sizeof(T) * coarse_histogram_size/ 16; ++i) {
         __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a) + i);
         __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b) + i);
@@ -146,7 +146,7 @@ class MedianProcessor
       }
     }
 
-      static MB_FORCEINLINE void add_16_bins_sse2(T* a, const T *b) {
+    static MB_FORCEINLINE void add_16_bins_sse2(T* a, const T *b) {
         for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 16; ++i) {
             __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a)+i);
             __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b)+i);
@@ -155,7 +155,7 @@ class MedianProcessor
         }
     }
 
-      static MB_FORCEINLINE void sub_16_bins_coarse_sse2(T* a, const T *b) {
+    static MB_FORCEINLINE void sub_16_bins_coarse_sse2(T* a, const T *b) {
         for (int i = 0; i < sizeof(T) * coarse_histogram_size / 16; ++i) {
             __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a)+i);
             __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b)+i);
@@ -164,7 +164,7 @@ class MedianProcessor
         }
     }
 
-      static MB_FORCEINLINE void sub_16_bins_sse2(T* a, const T* b) {
+    static MB_FORCEINLINE void sub_16_bins_sse2(T* a, const T* b) {
       for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 16; ++i) {
         __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a) + i);
         __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b) + i);
@@ -173,7 +173,7 @@ class MedianProcessor
       }
     }
 
-      static MB_FORCEINLINE void zero_single_bin_sse2(T* a) {
+    static MB_FORCEINLINE void zero_single_bin_sse2(T* a) {
         __m128i zero = _mm_setzero_si128();
         for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 16; ++i) {
             _mm_store_si128(reinterpret_cast<__m128i*>(a)+i, zero);
@@ -223,7 +223,7 @@ class MedianProcessor
     }
 
     template<typename pixel_t, int bits_per_pixel, bool chroma>
-      static MB_FORCEINLINE void process_line(uint8_t *dstp, Histogram* histograms, ColumnPair *fine_columns, Histogram *current_hist, int radius, int temporal_radius, int width, int current_length_y) {
+    static MB_FORCEINLINE void process_line(uint8_t *dstp, Histogram* histograms, ColumnPair *fine_columns, Histogram *current_hist, int radius, int temporal_radius, int width, int current_length_y) {
         memset(current_hist, 0, HISTOGRAM_SIZE);  // also nullifies fine 
         memset(fine_columns, -1, sizeof(ColumnPair) * coarse_histogram_size);
 
@@ -557,11 +557,10 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
-    int radii[] = { radius_y, radius_u, radius_v, radius_y };
+    // alpha is copied
+    int radii[] = { radius_y, radius_u, radius_v, 0 };
 
-#pragma warning(disable: 4800)
-    bool sse2 = env->GetCPUFlags() & CPUF_SSE2;
-#pragma warning(default: 4800)
+    bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
 
     int hist_size = 0;
     for (int i = 0; i < vi.NumComponents(); ++i) {
@@ -577,7 +576,6 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
         env->ThrowError("MedianBlur: image is too small for this radius!");
       }
 
-
       //special cases make sense only when SSE2 is available, otherwise generic routine will be faster
       if (bits_per_pixel == 8 && radii[i] == 1 && sse2 && width > 16) {
         processors_[i] = &calculate_median_r1;
@@ -586,28 +584,24 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
         processors_[i] = &calculate_median_r2;
       }
       else if (radii[i] < 8) {
-        int buffersize;
+        // radius<8, processing width <= 7+1+7
+        // max pixel count for a histogram entry <= 15x15, counters (bins) fit in a byte, using uint8_t for counter type
         if (sse2) {
           switch (bits_per_pixel) {
           case 8:
             processors_[i] = &MedianProcessor<uint8_t, 8, InstructionSet::SSE2>::calculate_median<uint8_t, 8, false>;
-            buffersize = MedianProcessor<uint8_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 10:
             processors_[i] = &MedianProcessor<uint8_t, 10, InstructionSet::SSE2>::calculate_median<uint16_t, 10, false>;
-            buffersize = MedianProcessor<uint8_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 12:
             processors_[i] = &MedianProcessor<uint8_t, 12, InstructionSet::SSE2>::calculate_median<uint16_t, 12, false>;
-            buffersize = MedianProcessor<uint8_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 14:
             processors_[i] = &MedianProcessor<uint8_t, 14, InstructionSet::SSE2>::calculate_median<uint16_t, 14, false>;
-            buffersize = MedianProcessor<uint8_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 16:
             processors_[i] = &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<uint16_t, 16, false>;
-            buffersize = MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           default:
             // float histogram is simulated as 16 bits
@@ -616,7 +610,6 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
               chroma ?
               &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, true> :
               &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, false>;
-            buffersize = MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           }
         }
@@ -624,23 +617,18 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
           switch (bits_per_pixel) {
           case 8:
             processors_[i] = &MedianProcessor<uint8_t, 8, InstructionSet::PLAIN_C>::calculate_median<uint8_t, 8, false>;
-            buffersize = MedianProcessor<uint8_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 10:
             processors_[i] = &MedianProcessor<uint8_t, 10, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 10, false>;
-            buffersize = MedianProcessor<uint8_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 12:
             processors_[i] = &MedianProcessor<uint8_t, 12, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 12, false>;
-            buffersize = MedianProcessor<uint8_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 14:
             processors_[i] = &MedianProcessor<uint8_t, 14, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 14, false>;
-            buffersize = MedianProcessor<uint8_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 16:
             processors_[i] = &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 16, false>;
-            buffersize = MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           default:
             // float histogram is simulated as 16 bits
@@ -649,32 +637,37 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
               chroma ?
               &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, true> :
               &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, false>;
-            buffersize = MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           }
+        }
+
+        int buffersize;
+        switch (bits_per_pixel) {
+        case 8: buffersize = MedianProcessor<uint8_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 10: buffersize = MedianProcessor<uint8_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 12: buffersize = MedianProcessor<uint8_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 14: buffersize = MedianProcessor<uint8_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 16: buffersize = MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        default: // 32 bit is simulated on 16 bit histogram
+          buffersize = MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
         }
 
         hist_size = std::max(hist_size, buffersize);
       }
       else {
-        // radius>=8
-        int buffersize;
+        // radius>=8, processing width >= 8+1+8
+        // max pixel count for a histogram entry >= 17x17, counters does not fit in a byte, using uint16_t for counter type
         if (bits_per_pixel == 8 && sse2) {
           switch (bits_per_pixel) {
           case 8:processors_[i] = &MedianProcessor<uint16_t, 8, InstructionSet::SSE2>::calculate_median<uint8_t, 8, false>;
-            buffersize = MedianProcessor<uint16_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 10:processors_[i] = &MedianProcessor<uint16_t, 10, InstructionSet::SSE2>::calculate_median<uint16_t, 10, false>;
-            buffersize = MedianProcessor<uint16_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 12:processors_[i] = &MedianProcessor<uint16_t, 12, InstructionSet::SSE2>::calculate_median<uint16_t, 12, false>;
-            buffersize = MedianProcessor<uint16_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 14:processors_[i] = &MedianProcessor<uint16_t, 14, InstructionSet::SSE2>::calculate_median<uint16_t, 14, false>;
-            buffersize = MedianProcessor<uint16_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 16:processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<uint16_t, 16, false>;
-            buffersize = MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           default: // float
             // float histogram is simulated as 16 bits
@@ -683,26 +676,20 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
               chroma ?
               processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, true> :
               processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, false>;
-            buffersize = MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           }
         }
         else {
           switch (bits_per_pixel) {
           case 8:processors_[i] = &MedianProcessor<uint16_t, 8, InstructionSet::PLAIN_C>::calculate_median<uint8_t, 8, false>;
-            buffersize = MedianProcessor<uint16_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 10:processors_[i] = &MedianProcessor<uint16_t, 10, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 10, false>;
-            buffersize = MedianProcessor<uint16_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 12:processors_[i] = &MedianProcessor<uint16_t, 12, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 12, false>;
-            buffersize = MedianProcessor<uint16_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 14:processors_[i] = &MedianProcessor<uint16_t, 14, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 14, false>;
-            buffersize = MedianProcessor<uint16_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           case 16:processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 16, false>;
-            buffersize = MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           default: // float
             // float histogram is simulated as 16 bits
@@ -711,10 +698,21 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
               chroma ?
               processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, true> :
               processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, false>;
-            buffersize = MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE;
             break;
           }
         }
+
+        int buffersize;
+        switch (bits_per_pixel) {
+        case 8: buffersize = MedianProcessor<uint16_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 10: buffersize = MedianProcessor<uint16_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 12: buffersize = MedianProcessor<uint16_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 14: buffersize = MedianProcessor<uint16_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 16: buffersize = MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        default: // 32 bit is simulated on 16 bit histogram
+          buffersize = MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        }
+
         hist_size = std::max(hist_size, buffersize);
 
       }
@@ -722,7 +720,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
 
     if (hist_size) {
         //allocate buffer only for generic approach
-        buffer_ = _aligned_malloc(vi.width  * hist_size, 32); // fixme: or 32 for later in avx
+        buffer_ = _aligned_malloc(vi.width  * hist_size, 32);
         if (!buffer_) {
             env->ThrowError("MedianBlurTemp: Couldn't callocate buffer.");
         }
@@ -737,7 +735,8 @@ PVideoFrame MedianBlur::GetFrame(int n, IScriptEnvironment *env) {
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
-    int radii[] = { radius_y_, radius_u_, radius_v_ };
+    // alpha is copied
+    int radii[] = { radius_y_, radius_u_, radius_v_, 0 };
     for (int i = 0; i < vi.NumComponents(); i++) {
         int plane = planes[i];
         int radius = radii[i];
@@ -804,7 +803,8 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
-    int radii[] = { radius_y, radius_u, radius_v, radius_y };
+    // alpha is copied
+    int radii[] = { radius_y, radius_u, radius_v, 0 };
 
     for (int i = 0; i < vi.NumComponents(); ++i) {
         if (radii[i] < 0) {
@@ -849,7 +849,7 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
       buffersize = MedianProcessor<int32_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
     }
     
-    buffer_ = _aligned_malloc(vi.width  * buffersize, 16); // fixme: or 32 for later in avx
+    buffer_ = _aligned_malloc(vi.width  * buffersize, 32);
     if (!buffer_) {
         env->ThrowError("MedianBlurTemp: Couldn't callocate buffer.");
     }
@@ -882,7 +882,8 @@ PVideoFrame MedianBlurTemp::GetFrame(int n, IScriptEnvironment *env) {
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
-    int radii[] = { radius_y_, radius_u_, radius_v_, radius_y_ };
+    // alpha is copied
+    int radii[] = { radius_y_, radius_u_, radius_v_, -1 };
     for (int i = 0; i < vi.NumComponents(); i++) {
         int plane = planes[i];
         int radius = radii[i];
@@ -922,12 +923,20 @@ PVideoFrame MedianBlurTemp::GetFrame(int n, IScriptEnvironment *env) {
 
 AVSValue __cdecl create_median_blur(AVSValue args, void*, IScriptEnvironment* env) {
     enum { CLIP, RADIUS, RADIUS_U, RADIUS_V };
-    return new MedianBlur(args[CLIP].AsClip(), args[RADIUS].AsInt(2), args[RADIUS_U].AsInt(2), args[RADIUS_V].AsInt(2), env);
+    const bool isRGB = args[0].AsClip()->GetVideoInfo().IsRGB();
+    const int radius_y = args[RADIUS].AsInt(2);
+    const int radius_u = isRGB ? radius_y : args[RADIUS_U].AsInt(2);
+    const int radius_v = isRGB ? radius_y : args[RADIUS_V].AsInt(2);
+    return new MedianBlur(args[CLIP].AsClip(), radius_y, radius_u, radius_v, env);
 }
 
 AVSValue __cdecl create_temporal_median_blur(AVSValue args, void*, IScriptEnvironment* env) {
     enum { CLIP, RADIUS, RADIUS_U, RADIUS_V, TEMPORAL_RADIUS };
-    return new MedianBlurTemp(args[CLIP].AsClip(), args[RADIUS].AsInt(2), args[RADIUS_U].AsInt(2), args[RADIUS_V].AsInt(2), args[TEMPORAL_RADIUS].AsInt(1), env);
+    const bool isRGB = args[0].AsClip()->GetVideoInfo().IsRGB();
+    const int radius_y = args[RADIUS].AsInt(2);
+    const int radius_u = isRGB ? radius_y : args[RADIUS_U].AsInt(2);
+    const int radius_v = isRGB ? radius_y : args[RADIUS_V].AsInt(2);
+    return new MedianBlurTemp(args[CLIP].AsClip(), radius_y, radius_u, radius_v, args[TEMPORAL_RADIUS].AsInt(1), env);
 }
 
 const AVS_Linkage *AVS_linkage = nullptr;
