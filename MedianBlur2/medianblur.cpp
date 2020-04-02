@@ -527,6 +527,11 @@ public:
     MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IScriptEnvironment* env);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
 
+    // Auto register AVS+ mode
+    int __stdcall SetCacheHints(int cachehints, int frame_range) override {
+      return cachehints == CACHE_GET_MTMODE ? MT_MULTI_INSTANCE : 0;
+    }
+
     ~MedianBlur() {
         _aligned_free(buffer_);
     }
@@ -767,6 +772,11 @@ class MedianBlurTemp : public GenericVideoFilter {
 public:
     MedianBlurTemp(PClip child, int radius_y, int radius_u, int radius_v, int radius_temp, IScriptEnvironment* env);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
+
+    // Auto register AVS+ mode
+    int __stdcall SetCacheHints(int cachehints, int frame_range) override {
+      return cachehints == CACHE_GET_MTMODE ? MT_MULTI_INSTANCE : 0;
+    }
 
     ~MedianBlurTemp() {
         _aligned_free(buffer_);
