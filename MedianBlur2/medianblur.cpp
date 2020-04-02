@@ -17,7 +17,7 @@ enum class InstructionSet
     PLAIN_C
 };
 
-static __forceinline int calculate_window_side_length(int radius, int x, int width) {
+static MB_FORCEINLINE int calculate_window_side_length(int radius, int x, int width) {
     int length = radius + 1;
     if (x <= radius) {
         length += x;
@@ -30,42 +30,42 @@ static __forceinline int calculate_window_side_length(int radius, int x, int wid
 }
 
 template<typename T>
-static __forceinline __m128i simd_adds(const __m128i &a, const __m128i &b) {
+static MB_FORCEINLINE __m128i simd_adds(const __m128i &a, const __m128i &b) {
     assert(false);
 }
 
 template<>
-static __forceinline __m128i simd_adds<uint8_t>(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_adds<uint8_t>(const __m128i &a, const __m128i &b) {
     return _mm_adds_epu8(a, b);
 }
 
 template<>
-static __forceinline __m128i simd_adds<uint16_t>(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_adds<uint16_t>(const __m128i &a, const __m128i &b) {
     return _mm_adds_epu16(a, b);
 }
 
 template<>
-static __forceinline __m128i simd_adds<int32_t>(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_adds<int32_t>(const __m128i &a, const __m128i &b) {
     return _mm_add_epi32(a, b);
 }
 
 template<typename T>
-static __forceinline __m128i simd_subs(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_subs(const __m128i &a, const __m128i &b) {
     assert(false);
 }
 
 template<>
-static __forceinline __m128i simd_subs<uint8_t>(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_subs<uint8_t>(const __m128i &a, const __m128i &b) {
     return _mm_subs_epu8(a, b);
 }
 
 template<>
-static __forceinline __m128i simd_subs<uint16_t>(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_subs<uint16_t>(const __m128i &a, const __m128i &b) {
     return _mm_subs_epu16(a, b);
 }
 
 template<>
-static __forceinline __m128i simd_subs<int32_t>(const __m128i &a, const __m128i &b) {
+MB_FORCEINLINE __m128i simd_subs<int32_t>(const __m128i &a, const __m128i &b) {
     return _mm_sub_epi32(a, b);
 }
 
@@ -107,37 +107,37 @@ class MedianProcessor
         int end;
     } ColumnPair;
 
-    static __forceinline void add_16_bins_coarse_c(T* a, const T* b) {
+    static MB_FORCEINLINE void add_16_bins_coarse_c(T* a, const T* b) {
       for (int i = 0; i < coarse_histogram_size; ++i) {
         a[i] += b[i];
       }
     }
 
-    static __forceinline void add_16_bins_c(T* a, const T *b) {
+    static MB_FORCEINLINE void add_16_bins_c(T* a, const T *b) {
         for (int i = 0; i < histogram_refining_part_size; ++i) {
             a[i] += b[i];
         }
     }
 
-    static __forceinline void sub_16_bins_coarse_c(T* a, const T* b) {
+    static MB_FORCEINLINE void sub_16_bins_coarse_c(T* a, const T* b) {
       for (int i = 0; i < coarse_histogram_size; ++i) {
         a[i] -= b[i];
       }
     }
 
-    static __forceinline void sub_16_bins_c(T* a, const T *b) {
+    static MB_FORCEINLINE void sub_16_bins_c(T* a, const T *b) {
         for (int i = 0; i < histogram_refining_part_size; ++i) {
             a[i] -= b[i];
         }
     }
 
-    static __forceinline void zero_single_bin_c(T* a) {
+      static MB_FORCEINLINE void zero_single_bin_c(T* a) {
         for (int i = 0; i < histogram_refining_part_size; ++i) {
             a[i] = 0;
         }
     }
 
-    static __forceinline void add_16_bins_coarse_sse2(T* a, const T* b) {
+      static MB_FORCEINLINE void add_16_bins_coarse_sse2(T* a, const T* b) {
       for (int i = 0; i < sizeof(T) * coarse_histogram_size/ 16; ++i) {
         __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a) + i);
         __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b) + i);
@@ -146,7 +146,7 @@ class MedianProcessor
       }
     }
 
-    static __forceinline void add_16_bins_sse2(T* a, const T *b) {
+      static MB_FORCEINLINE void add_16_bins_sse2(T* a, const T *b) {
         for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 16; ++i) {
             __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a)+i);
             __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b)+i);
@@ -155,7 +155,7 @@ class MedianProcessor
         }
     }
 
-    static __forceinline void sub_16_bins_coarse_sse2(T* a, const T *b) {
+      static MB_FORCEINLINE void sub_16_bins_coarse_sse2(T* a, const T *b) {
         for (int i = 0; i < sizeof(T) * coarse_histogram_size / 16; ++i) {
             __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a)+i);
             __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b)+i);
@@ -164,7 +164,7 @@ class MedianProcessor
         }
     }
 
-    static __forceinline void sub_16_bins_sse2(T* a, const T* b) {
+      static MB_FORCEINLINE void sub_16_bins_sse2(T* a, const T* b) {
       for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 16; ++i) {
         __m128i aval = _mm_load_si128(reinterpret_cast<const __m128i*>(a) + i);
         __m128i bval = _mm_load_si128(reinterpret_cast<const __m128i*>(b) + i);
@@ -173,14 +173,14 @@ class MedianProcessor
       }
     }
 
-    static __forceinline void zero_single_bin_sse2(T* a) {
+      static MB_FORCEINLINE void zero_single_bin_sse2(T* a) {
         __m128i zero = _mm_setzero_si128();
         for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 16; ++i) {
             _mm_store_si128(reinterpret_cast<__m128i*>(a)+i, zero);
         }
     }
 
-    static __forceinline void add_16_bins_coarse(T* a, const T* b) {
+    static MB_FORCEINLINE void add_16_bins_coarse(T* a, const T* b) {
       if constexpr (instruction_set == InstructionSet::SSE2) {
         add_16_bins_coarse_sse2(a, b);
       }
@@ -189,7 +189,7 @@ class MedianProcessor
       }
     }
 
-    static __forceinline void add_16_bins(T* a, const T *b) {
+    static MB_FORCEINLINE void add_16_bins(T* a, const T *b) {
         if constexpr (instruction_set == InstructionSet::SSE2) {
             add_16_bins_sse2(a, b);
         } else {
@@ -197,7 +197,7 @@ class MedianProcessor
         }
     }
 
-    static __forceinline void sub_16_bins_coarse(T* a, const T *b) {
+    static MB_FORCEINLINE void sub_16_bins_coarse(T* a, const T *b) {
         if constexpr(instruction_set == InstructionSet::SSE2) {
             sub_16_bins_coarse_sse2(a, b);
         } else {
@@ -205,7 +205,7 @@ class MedianProcessor
         }
     }
 
-    static __forceinline void sub_16_bins(T* a, const T* b) {
+    static MB_FORCEINLINE void sub_16_bins(T* a, const T* b) {
       if constexpr (instruction_set == InstructionSet::SSE2) {
         sub_16_bins_sse2(a, b);
       }
@@ -214,7 +214,7 @@ class MedianProcessor
       }
     }
 
-    static __forceinline void zero_single_bin(T* a) {
+    static MB_FORCEINLINE void zero_single_bin(T* a) {
         if constexpr (instruction_set == InstructionSet::SSE2) {
             zero_single_bin_sse2(a);
         } else {
@@ -223,7 +223,7 @@ class MedianProcessor
     }
 
     template<typename pixel_t, int bits_per_pixel, bool chroma>
-    static __forceinline void process_line(uint8_t *dstp, Histogram* histograms, ColumnPair *fine_columns, Histogram *current_hist, int radius, int temporal_radius, int width, int current_length_y) {
+      static MB_FORCEINLINE void process_line(uint8_t *dstp, Histogram* histograms, ColumnPair *fine_columns, Histogram *current_hist, int radius, int temporal_radius, int width, int current_length_y) {
         memset(current_hist, 0, HISTOGRAM_SIZE);  // also nullifies fine 
         memset(fine_columns, -1, sizeof(ColumnPair) * coarse_histogram_size);
 
@@ -547,12 +547,10 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
         env->ThrowError("MedianBlur: only planar formats allowed");
     }
 
-    // fixme: 127*256?
     if (radius_y > MAX_RADIUS || radius_u > MAX_RADIUS || radius_v > MAX_RADIUS) {
         env->ThrowError("MedianBlur: radius is too large. Must be between 0 and %i", MAX_RADIUS);
     }
 
-    const int pixelsize = vi.ComponentSize();
     const int bits_per_pixel = vi.BitsPerComponent();
 
     const int planesYUV[4] = { PLANAR_Y, PLANAR_U, PLANAR_V, PLANAR_A };
@@ -560,7 +558,6 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
     int radii[] = { radius_y, radius_u, radius_v, radius_y };
-    int min_width = vi.width;
 
 #pragma warning(disable: 4800)
     bool sse2 = env->GetCPUFlags() & CPUF_SSE2;
@@ -801,7 +798,6 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
         env->ThrowError("MedianBlurTemp: Invalid temporal radius. Should be greater than zero.");
     }
 
-    const int pixelsize = vi.ComponentSize();
     const int bits_per_pixel = vi.BitsPerComponent();
 
     const int planesYUV[4] = { PLANAR_Y, PLANAR_U, PLANAR_V, PLANAR_A };
@@ -809,14 +805,12 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
     int radii[] = { radius_y, radius_u, radius_v, radius_y };
-    int min_width = vi.width;
 
     for (int i = 0; i < vi.NumComponents(); ++i) {
         if (radii[i] < 0) {
             continue;
         }
         int plane = planes[i];
-        bool chroma = plane == PLANAR_U || plane == PLANAR_V;
         int width = vi.width >> vi.GetPlaneWidthSubsampling(plane);
         int height = vi.height >> vi.GetPlaneHeightSubsampling(plane);
         int core_size = radii[i]*2 + 1;
