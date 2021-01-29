@@ -615,8 +615,8 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
             // 32 bit float processors need special chroma handling
             processors_[i] =
               chroma ?
-              &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, true> :
-              &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, false>;
+              &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<float, 16, true> :
+              &MedianProcessor<uint8_t, 16, InstructionSet::SSE2>::calculate_median<float, 16, false>;
             break;
           }
         }
@@ -642,8 +642,8 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
             // 32 bit float processors need special chroma handling
             processors_[i] =
               chroma ?
-              &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, true> :
-              &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, false>;
+              &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 16, true> :
+              &MedianProcessor<uint8_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 16, false>;
             break;
           }
         }
@@ -681,8 +681,8 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
             // 32 bit float processors need special chroma handling
             processors_[i] =
               chroma ?
-              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, true> :
-              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<float, 32, false>;
+              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<float, 16, true> :
+              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::SSE2>::calculate_median<float, 16, false>;
             break;
           }
         }
@@ -703,8 +703,8 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
             // 32 bit float processors need special chroma handling
             processors_[i] =
               chroma ?
-              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, true> :
-              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 32, false>;
+              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 16, true> :
+              processors_[i] = &MedianProcessor<uint16_t, 16, InstructionSet::PLAIN_C>::calculate_median<float, 16, false>;
             break;
           }
         }
@@ -847,8 +847,8 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
       case 14: processor_ = &MedianProcessor<int32_t, 14, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 14>; break;
       case 16: processor_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 16>; break;
       default: // float histogram is simulated on 16 bits
-        processor_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 32, false>;
-        processor_chroma_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 32, true>;
+        processor_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 16, false>;
+        processor_chroma_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 16, true>;
         break;
       }
     }
@@ -860,8 +860,8 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
       case 14: processor_ = &MedianProcessor<int32_t, 14, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 14>; break;
       case 16: processor_ = &MedianProcessor<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 16>; break;
       default: // float histogram is simulated on 16 bits
-        processor_ = &MedianProcessor<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 32, false>;
-        processor_chroma_ = &MedianProcessor<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 32, true>;
+        processor_ = &MedianProcessor<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 16, false>;
+        processor_chroma_ = &MedianProcessor<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 16, true>;
         break;
       }
     }
