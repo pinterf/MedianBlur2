@@ -433,20 +433,22 @@ public:
         constexpr int max_pixel_value = sizeof(pixel_t) == 4 ? 65535 : (1 << bits_per_pixel) - 1;
 
         //init histograms
-        for (int y = 0; y < radius+1; ++y) {
-          for (int x = 0; x < width; ++x) {
-            for (int i = 0; i < frames_count; ++i) {
+        for (int i = 0; i < frames_count; ++i) {
+          auto srcp = src_ptrs[i];
+          auto pitch = src_pitches[i];
+          for (int y = 0; y < radius + 1; ++y) {
+            for (int x = 0; x < width; ++x) {
               int new_element;
               if constexpr (bits_per_pixel == 8) {
-                new_element = src_ptrs[i][y * src_pitches[i] + x];
+                new_element = srcp[x];
               }
-              else if constexpr(bits_per_pixel <= 16) {
-                new_element = *(reinterpret_cast<const uint16_t *>(src_ptrs[i] + y * src_pitches[i]) + x);
-                new_element = std::min(new_element, max_pixel_value);
+              else if constexpr (bits_per_pixel <= 16) {
+                new_element = *(reinterpret_cast<const uint16_t*>(srcp) + x);
+                new_element = std::min(new_element, max_pixel_value); // guard histogram buffer
               }
               else {
                 // 32 bit float: 0..1 luma, -0.5..-0.5 chroma range to 0..65535
-                float new_element_f = *(reinterpret_cast<const float *>(src_ptrs[i] + y * src_pitches[i]) + x);
+                float new_element_f = *(reinterpret_cast<const float*>(srcp) + x);
                 if constexpr (chroma)
                   new_element = (int)((new_element_f + 0.5f) * 65534.0f + 0.5f); // mul with even, keep center
                 else
@@ -456,6 +458,7 @@ public:
               histograms[x].coarse[new_element >> shift_to_coarse]++;
               histograms[x].fine[new_element]++;
             }
+            srcp += pitch;
           }
         }
 
