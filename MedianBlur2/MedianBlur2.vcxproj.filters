@@ -18,6 +18,12 @@
     <ClCompile Include="medianblur.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="medianblur_avx2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="medianblur_sse2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="special.h">
@@ -26,5 +32,25 @@
     <ClInclude Include="avisynth.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="medianblur.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="medianblur_avx2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="medianblur_sse2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="medianblur.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="MedianBlur2.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
