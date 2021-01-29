@@ -2,6 +2,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include "avisynth.h"
+#include "medianblur.h"
 #include <math.h>
 #include <assert.h>
 #include <stdint.h>
@@ -11,11 +12,6 @@
 #include <memory>
 #include <functional>
 
-enum class InstructionSet
-{
-  SSE2,
-  PLAIN_C
-};
 
 static MB_FORCEINLINE int calculate_window_side_length(int radius, int x, int width) {
     int length = radius + 1;
