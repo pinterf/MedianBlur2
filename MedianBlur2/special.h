@@ -54,6 +54,7 @@ static MB_FORCEINLINE void sort(__m128i &a1, __m128i &a2) {
     a1 = tmp;
 }
 
+// special case: radius=1, 8 bits
 #if defined(GCC) || defined(CLANG)
 __attribute__((__target__("sse2")))
 #endif
@@ -175,6 +176,7 @@ static void calculate_partial_median(uint8_t* dstp, const uint8_t* srcp, int dst
     }
 }
 
+// special case: radius=2, 8 bits
 #if defined(GCC) || defined(CLANG)
 __attribute__((__target__("sse2")))
 #endif
