@@ -13,8 +13,8 @@
 
 enum class InstructionSet
 {
-    SSE2,
-    PLAIN_C
+  SSE2,
+  PLAIN_C
 };
 
 static MB_FORCEINLINE int calculate_window_side_length(int radius, int x, int width) {
@@ -434,29 +434,29 @@ public:
 
         //init histograms
         for (int y = 0; y < radius+1; ++y) {
-            for (int x = 0; x < width; ++x) {
-                for (int i = 0; i < frames_count; ++i) {
-                  int new_element;
-                  if constexpr (bits_per_pixel == 8) {
-                    new_element = src_ptrs[i][y * src_pitches[i] + x];
-                  }
-                  else if constexpr(bits_per_pixel <= 16) {
-                    new_element = *(reinterpret_cast<const uint16_t *>(src_ptrs[i] + y * src_pitches[i]) + x);
-                    new_element = std::min(new_element, max_pixel_value);
-                  }
-                  else {
-                    // 32 bit float: 0..1 luma, -0.5..-0.5 chroma range to 0..65535
-                    float new_element_f = *(reinterpret_cast<const float *>(src_ptrs[i] + y * src_pitches[i]) + x);
-                    if constexpr (chroma)
-                      new_element = (int)((new_element_f + 0.5f) * 65534.0f + 0.5f); // mul with even, keep center
-                    else
-                      new_element = (int)(new_element_f * 65535.0f + 0.5f);
-                    new_element = std::max(0, std::min(new_element, 65535));
-                  }
-                  histograms[x].coarse[new_element >> shift_to_coarse]++;
-                  histograms[x].fine[new_element]++;
-                }
+          for (int x = 0; x < width; ++x) {
+            for (int i = 0; i < frames_count; ++i) {
+              int new_element;
+              if constexpr (bits_per_pixel == 8) {
+                new_element = src_ptrs[i][y * src_pitches[i] + x];
+              }
+              else if constexpr(bits_per_pixel <= 16) {
+                new_element = *(reinterpret_cast<const uint16_t *>(src_ptrs[i] + y * src_pitches[i]) + x);
+                new_element = std::min(new_element, max_pixel_value);
+              }
+              else {
+                // 32 bit float: 0..1 luma, -0.5..-0.5 chroma range to 0..65535
+                float new_element_f = *(reinterpret_cast<const float *>(src_ptrs[i] + y * src_pitches[i]) + x);
+                if constexpr (chroma)
+                  new_element = (int)((new_element_f + 0.5f) * 65534.0f + 0.5f); // mul with even, keep center
+                else
+                  new_element = (int)(new_element_f * 65535.0f + 0.5f);
+                new_element = std::max(0, std::min(new_element, 65535));
+              }
+              histograms[x].coarse[new_element >> shift_to_coarse]++;
+              histograms[x].fine[new_element]++;
             }
+          }
         }
 
         for (int y = 0; y < height; ++y) {
@@ -524,8 +524,8 @@ public:
 
 class MedianBlur : public GenericVideoFilter {
 public:
-    MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IScriptEnvironment* env);
-    PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
+    MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, int opt, IScriptEnvironment* env);
+    PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env) override;
 
     // Auto register AVS+ mode
     int __stdcall SetCacheHints(int cachehints, int frame_range) override {
@@ -540,14 +540,15 @@ private:
     int radius_y_;
     int radius_u_;
     int radius_v_;
+    int opt_;
     void *buffer_;
     decltype(&MedianProcessor<uint8_t, 8, InstructionSet::SSE2>::calculate_median<uint8_t, 8, false>) processors_[4];
 
     static const int MAX_RADIUS = 127;
 };
 
-MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IScriptEnvironment* env)
-: GenericVideoFilter(child), radius_y_(radius_y), radius_u_(radius_u), radius_v_(radius_v), buffer_(nullptr) {
+MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, int opt, IScriptEnvironment* env)
+: GenericVideoFilter(child), radius_y_(radius_y), radius_u_(radius_u), radius_v_(radius_v), opt_(opt), buffer_(nullptr) {
     if (!vi.IsPlanar()) {
         env->ThrowError("MedianBlur: only planar formats allowed");
     }
@@ -566,6 +567,8 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
     int radii[] = { radius_y, radius_u, radius_v, 0 };
 
     bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
+    if (opt_ == 0)
+      sse2 = false;
 
     int hist_size = 0;
     for (int i = 0; i < vi.NumComponents(); ++i) {
@@ -662,7 +665,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, IS
       else {
         // radius>=8, processing width >= 8+1+8
         // max pixel count for a histogram entry >= 17x17, counters does not fit in a byte, using uint16_t for counter type
-        if (bits_per_pixel == 8 && sse2) {
+        if (sse2) {
           switch (bits_per_pixel) {
           case 8:processors_[i] = &MedianProcessor<uint16_t, 8, InstructionSet::SSE2>::calculate_median<uint8_t, 8, false>;
             break;
@@ -770,8 +773,8 @@ PVideoFrame MedianBlur::GetFrame(int n, IScriptEnvironment *env) {
 
 class MedianBlurTemp : public GenericVideoFilter {
 public:
-    MedianBlurTemp(PClip child, int radius_y, int radius_u, int radius_v, int radius_temp, IScriptEnvironment* env);
-    PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
+    MedianBlurTemp(PClip child, int radius_y, int radius_u, int radius_v, int radius_temp, int opt, IScriptEnvironment* env);
+    PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env) override;
 
     // Auto register AVS+ mode
     int __stdcall SetCacheHints(int cachehints, int frame_range) override {
@@ -787,6 +790,7 @@ private:
     int radius_u_;
     int radius_v_;
     int radius_temp_;
+    int opt_;
     void *buffer_;
     decltype(&MedianProcessor<int32_t, 8, InstructionSet::SSE2>::calculate_temporal_median<uint8_t, 8>) processor_;
     decltype(&MedianProcessor<int32_t, 8, InstructionSet::SSE2>::calculate_temporal_median<uint8_t, 8>) processor_chroma_;
@@ -794,8 +798,8 @@ private:
     static const int MAX_RADIUS = 1024;
 };
 
-MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radius_v, int radius_temp, IScriptEnvironment* env)
-: GenericVideoFilter(child), radius_y_(radius_y), radius_u_(radius_u), radius_v_(radius_v), radius_temp_(radius_temp), buffer_(nullptr) {
+MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radius_v, int radius_temp, int opt, IScriptEnvironment* env)
+: GenericVideoFilter(child), radius_y_(radius_y), radius_u_(radius_u), radius_v_(radius_v), radius_temp_(radius_temp), opt_(opt), buffer_(nullptr) {
     if (!vi.IsPlanar()) {
         env->ThrowError("MedianBlurTemp: only planar formats allowed");
     }
@@ -816,6 +820,10 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     // alpha is copied
     int radii[] = { radius_y, radius_u, radius_v, 0 };
 
+    bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
+    if (opt_ == 0)
+      sse2 = false;
+
     for (int i = 0; i < vi.NumComponents(); ++i) {
         if (radii[i] < 0) {
             continue;
@@ -832,9 +840,20 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     // all counter accumulators are 32 bit ints, no need to differentiate by planes
     processor_chroma_ = nullptr;
 
-    if (bits_per_pixel == 8 && !!(env->GetCPUFlags() & CPUF_SSE2)) {
-        processor_ = &MedianProcessor<int32_t, 8, InstructionSet::SSE2>::calculate_temporal_median<uint8_t, 8>;
-    } else {
+    if (sse2) {
+      switch (bits_per_pixel) {
+      case 8: processor_ = &MedianProcessor<int32_t, 8, InstructionSet::SSE2>::calculate_temporal_median<uint8_t, 8>; break;
+      case 10: processor_ = &MedianProcessor<int32_t, 10, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 10>; break;
+      case 12: processor_ = &MedianProcessor<int32_t, 12, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 12>; break;
+      case 14: processor_ = &MedianProcessor<int32_t, 14, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 14>; break;
+      case 16: processor_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 16>; break;
+      default: // float histogram is simulated on 16 bits
+        processor_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 32, false>;
+        processor_chroma_ = &MedianProcessor<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 32, true>;
+        break;
+      }
+    }
+    else {
       switch (bits_per_pixel) {
       case 8: processor_ = &MedianProcessor<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8>; break;
       case 10: processor_ = &MedianProcessor<int32_t, 10, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 10>; break;
@@ -932,28 +951,30 @@ PVideoFrame MedianBlurTemp::GetFrame(int n, IScriptEnvironment *env) {
 }
 
 AVSValue __cdecl create_median_blur(AVSValue args, void*, IScriptEnvironment* env) {
-    enum { CLIP, RADIUS, RADIUS_U, RADIUS_V };
+    enum { CLIP, RADIUS, RADIUS_U, RADIUS_V, OPT };
     const bool isRGB = args[0].AsClip()->GetVideoInfo().IsRGB();
     const int radius_y = args[RADIUS].AsInt(2);
     const int radius_u = isRGB ? radius_y : args[RADIUS_U].AsInt(2);
     const int radius_v = isRGB ? radius_y : args[RADIUS_V].AsInt(2);
-    return new MedianBlur(args[CLIP].AsClip(), radius_y, radius_u, radius_v, env);
+    const int opt = args[OPT].AsInt(-1); // -1: auto, 0: C, other: SIMD
+    return new MedianBlur(args[CLIP].AsClip(), radius_y, radius_u, radius_v, opt, env);
 }
 
 AVSValue __cdecl create_temporal_median_blur(AVSValue args, void*, IScriptEnvironment* env) {
-    enum { CLIP, RADIUS, RADIUS_U, RADIUS_V, TEMPORAL_RADIUS };
+    enum { CLIP, RADIUS, RADIUS_U, RADIUS_V, TEMPORAL_RADIUS, OPT };
     const bool isRGB = args[0].AsClip()->GetVideoInfo().IsRGB();
     const int radius_y = args[RADIUS].AsInt(2);
     const int radius_u = isRGB ? radius_y : args[RADIUS_U].AsInt(2);
     const int radius_v = isRGB ? radius_y : args[RADIUS_V].AsInt(2);
-    return new MedianBlurTemp(args[CLIP].AsClip(), radius_y, radius_u, radius_v, args[TEMPORAL_RADIUS].AsInt(1), env);
+    const int opt = args[OPT].AsInt(-1); // -1: auto, 0: C, other: SIMD
+    return new MedianBlurTemp(args[CLIP].AsClip(), radius_y, radius_u, radius_v, args[TEMPORAL_RADIUS].AsInt(1), opt, env);
 }
 
 const AVS_Linkage *AVS_linkage = nullptr;
 
 extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit3(IScriptEnvironment* env, const AVS_Linkage* const vectors) {
     AVS_linkage = vectors;
-    env->AddFunction("MedianBlur", "c[radiusy]i[radiusu]i[radiusv]i", create_median_blur, 0);
-    env->AddFunction("MedianBlurTemporal", "c[radiusy]i[radiusu]i[radiusv]i[temporalradius]i", create_temporal_median_blur, 0);
+    env->AddFunction("MedianBlur", "c[radiusy]i[radiusu]i[radiusv]i[opt]i", create_median_blur, 0);
+    env->AddFunction("MedianBlurTemporal", "c[radiusy]i[radiusu]i[radiusv]i[temporalradius]i[opt]i", create_temporal_median_blur, 0);
     return "Kawaikunai";
 }
