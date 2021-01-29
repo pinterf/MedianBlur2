@@ -141,6 +141,11 @@ MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::
 
 #ifdef MEDIANPROCESSOR_AVX2
 template< typename T, int histogram_resolution_bits, InstructionSet instruction_set >
+#ifdef MEDIANPROCESSOR_AVX2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("fma,avx2")))
+#endif
+#endif
 MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::add_16_bins_coarse(T* a, const T* b) {
   for (int i = 0; i < sizeof(T) * coarse_histogram_size / 32; ++i) {
     auto aval = _mm256_load_si256(reinterpret_cast<const __m256i*>(a) + i);
@@ -151,6 +156,11 @@ MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::
 }
 
 template< typename T, int histogram_resolution_bits, InstructionSet instruction_set >
+#ifdef MEDIANPROCESSOR_AVX2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("fma,avx2")))
+#endif
+#endif
 MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::add_16_bins(T* a, const T* b) {
   for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 32; ++i) {
     auto aval = _mm256_load_si256(reinterpret_cast<const __m256i*>(a) + i);
@@ -161,6 +171,11 @@ MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::
 }
 
 template< typename T, int histogram_resolution_bits, InstructionSet instruction_set >
+#ifdef MEDIANPROCESSOR_AVX2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("fma,avx2")))
+#endif
+#endif
 MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::sub_16_bins_coarse(T* a, const T* b) {
   for (int i = 0; i < sizeof(T) * coarse_histogram_size / 32; ++i) {
     auto aval = _mm256_load_si256(reinterpret_cast<const __m256i*>(a) + i);
@@ -171,6 +186,11 @@ MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::
 }
 
 template< typename T, int histogram_resolution_bits, InstructionSet instruction_set >
+#ifdef MEDIANPROCESSOR_AVX2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("fma,avx2")))
+#endif
+#endif
 MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::sub_16_bins(T* a, const T* b) {
   for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 32; ++i) {
     auto aval = _mm256_load_si256(reinterpret_cast<const __m256i*>(a) + i);
@@ -181,6 +201,11 @@ MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::
 }
 
 template< typename T, int histogram_resolution_bits, InstructionSet instruction_set >
+#ifdef MEDIANPROCESSOR_AVX2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("fma,avx2")))
+#endif
+#endif
 MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::zero_single_bin(T* a) {
   auto zero = _mm256_setzero_si256();
   for (int i = 0; i < sizeof(T) * histogram_refining_part_size / 32; ++i) {
@@ -191,7 +216,17 @@ MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set >::
 
 template< typename T, int histogram_resolution_bits, InstructionSet instruction_set >
 template<typename pixel_t, int bits_per_pixel, bool chroma>
-static MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set>::process_line(uint8_t* dstp, Histogram* histograms, ColumnPair* fine_columns, Histogram* current_hist, int radius, int temporal_radius, int width, int current_length_y) {
+#ifdef MEDIANPROCESSOR_AVX2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("fma,avx2")))
+#endif
+#endif
+#ifdef MEDIANPROCESSOR_SSE2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("sse2")))
+#endif
+#endif
+MB_FORCEINLINE void MEDIANPROC<T, histogram_resolution_bits, instruction_set>::process_line(uint8_t* dstp, Histogram* histograms, ColumnPair* fine_columns, Histogram* current_hist, int radius, int temporal_radius, int width, int current_length_y) {
   memset(current_hist, 0, HISTOGRAM_SIZE);  // also nullifies fine 
   memset(fine_columns, -1, sizeof(ColumnPair) * coarse_histogram_size);
 

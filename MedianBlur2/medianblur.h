@@ -41,16 +41,6 @@ uint32_t for TemporalMedian, independently from radius
 
 // template is specialized for avx2
 
-#ifdef MEDIANPROCESSOR_SSE2
-#if defined(GCC) || defined(CLANG)
-__attribute__((__target__("sse2")))
-#endif
-#endif
-#ifdef MEDIANPROCESSOR_AVX2
-#if defined(GCC) || defined(CLANG)
-__attribute__((__target__("avx2, fma3")))
-#endif
-#endif
 template<typename T, int histogram_resolution_bits, InstructionSet instruction_set>
 #ifdef MEDIANPROCESSOR_AVX2
 class MedianProcessor_avx2

@@ -42,6 +42,8 @@ private:
     int opt_;
     void *buffer_;
     decltype(&MedianProcessor_c<uint8_t, 8, InstructionSet::PLAIN_C>::calculate_median<uint8_t, 8, false>) processors_[4];
+ 
+    bool has_at_least_v8; // v8 interface frameprop copy support
 
     static const int MAX_RADIUS = 127;
 };
@@ -55,6 +57,10 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
     if (radius_y > MAX_RADIUS || radius_u > MAX_RADIUS || radius_v > MAX_RADIUS) {
         env->ThrowError("MedianBlur: radius is too large. Must be between 0 and %i", MAX_RADIUS);
     }
+
+    has_at_least_v8 = true;
+    try { env->CheckVersion(8); }
+    catch (const AvisynthError&) { has_at_least_v8 = false; }
 
     const int bits_per_pixel = vi.BitsPerComponent();
 
@@ -246,7 +252,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
 
 PVideoFrame MedianBlur::GetFrame(int n, IScriptEnvironment *env) {
     PVideoFrame src = child->GetFrame(n, env);
-    PVideoFrame dst = env->NewVideoFrame(vi);
+    PVideoFrame dst = has_at_least_v8 ? env->NewVideoFrameP(vi, &src) : env->NewVideoFrame(vi); // frame property support
 
     const int planesYUV[4] = { PLANAR_Y, PLANAR_U, PLANAR_V, PLANAR_A };
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
@@ -304,11 +310,14 @@ private:
     decltype(&MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>) processor_;
     decltype(&MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>) processor_chroma_;
 
+    bool has_at_least_v8; // v8 interface frameprop copy support
+
     static constexpr int MAX_RADIUS = 1024;
 };
 
 MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radius_v, int radius_temp, int opt, IScriptEnvironment* env)
 : GenericVideoFilter(child), radius_y_(radius_y), radius_u_(radius_u), radius_v_(radius_v), radius_temp_(radius_temp), opt_(opt), buffer_(nullptr) {
+
     if (!vi.IsPlanar()) {
         env->ThrowError("MedianBlurTemp: only planar formats allowed");
     }
@@ -319,6 +328,10 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     if (radius_temp <= 0) {
         env->ThrowError("MedianBlurTemp: Invalid temporal radius. Should be greater than zero.");
     }
+
+    has_at_least_v8 = true;
+    try { env->CheckVersion(8); }
+    catch (const AvisynthError&) { has_at_least_v8 = false; }
 
     const int bits_per_pixel = vi.BitsPerComponent();
 
@@ -432,7 +445,7 @@ PVideoFrame MedianBlurTemp::GetFrame(int n, IScriptEnvironment *env) {
         env->ThrowError("MedianBlurTemp: Couldn't allocate memory on stack. This is a bug, please report");
     }
 
-    PVideoFrame dst = env->NewVideoFrame(vi);
+    PVideoFrame dst = has_at_least_v8 ? env->NewVideoFrameP(vi, &src) : env->NewVideoFrame(vi); // frame property support
 
     const int planesYUV[4] = { PLANAR_Y, PLANAR_U, PLANAR_V, PLANAR_A };
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
