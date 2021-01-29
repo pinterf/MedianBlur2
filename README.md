@@ -33,6 +33,7 @@ Radii 1 and 2 are special case only for 8 bits as of v1.0.
 - (1.1) (20210129 - Work In Progress) - pinterf
   - SSE2 and AVX2 for 10+ bits (generic case, MedianBlur)
   - SSE2 and AVX2 for TemporalMedianBlur
+  - Pass frame properties when Avisynth interface>=8
   - Debug helper parameter 'opt': integer default -1
     <0: autodetect CPU
     0: C only (disable SSE2 and AVX2)
