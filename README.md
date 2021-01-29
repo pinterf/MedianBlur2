@@ -13,9 +13,10 @@ Planar RGB is using value for radiusy for all its channels. radius u and radius 
 ### Performance
 Unlike the old MedianBlur, this implementation has constant runtime complexity, meaning that theoretical performance is same for any radius. A few additional optimizations are included:
 
-1. Radii 1 and 2 are special-cased (a lot faster but less generic algorithm) when SSE2 is available.
+1. Radii 1 and 2 are special-cased (a lot faster but less generic algorithm) when SSE2 is available. (8 bit videos)
 2. For 2 < radius < 8, generic approach with 8-bit bin size is used.
-3. For large radii, 16-bit bins are used, as described in the paper. 
+3. For large radii, 16-bit bins are used, as described in the paper.
+4. TemporalMedianBlur is using 32 bit bins
 
 In other words, you can expect huge performance drop when going from 1 to 2, not so huge but still large from 2 to 3 and a noticeable slowdown from 7 to 8. Between them the fps should be constant and it actually might get a bit faster with larger radii. 
 
@@ -28,6 +29,17 @@ Unfortunately 32 bit float is faked: float data have to be quantized before proc
 Radii 1 and 2 are special case only for 8 bits as of v1.0.
 
 ### Change log ###
+
+- (1.1) (20210129 - Work In Progress) - pinterf
+  - SSE2 and AVX2 for 10+ bits (generic case, MedianBlur)
+  - SSE2 and AVX2 for TemporalMedianBlur
+  - Debug helper parameter 'opt': integer default -1
+    <0: autodetect CPU
+    0: C only (disable SSE2 and AVX2)
+    1: SSE2 (disable AVX2)
+    2: AVX2 (if available)
+  - Not done: (linux build support, pure C support, CMake build environment)
+  - Not done: (maybe special TemporalMedianBlur case: temporal rad=1, spatial rad=0)
 
 - 1.0 (20200402) - pinterf
   add high bitdepth support
