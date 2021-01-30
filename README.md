@@ -17,6 +17,7 @@ Unlike the old MedianBlur, this implementation has constant runtime complexity, 
 2. For 2 < radius < 8, generic approach with 8-bit bin size is used.
 3. For large radii, 16-bit bins are used, as described in the paper.
 4. TemporalMedianBlur is using 32 bit bins
+5. TemporalMedianBlur quick special case for radius=0 and temporal radius 1 or 2
 
 In other words, you can expect huge performance drop when going from 1 to 2, not so huge but still large from 2 to 3 and a noticeable slowdown from 7 to 8. Between them the fps should be constant and it actually might get a bit faster with larger radii. 
 
@@ -30,17 +31,18 @@ Radii 1 and 2 are special case only for 8 bits as of v1.0.
 
 ### Change log ###
 
-- (1.1) (20210129 - Work In Progress) - pinterf
-  - SSE2 and AVX2 for 10+ bits (generic case, MedianBlur)
-  - SSE2 and AVX2 for TemporalMedianBlur
+- (1.1) (20210130) - pinterf
+  - Speed: SSE2 and AVX2 for 10+ bits (generic case, MedianBlur)
+  - Speed: SSE2 and AVX2 for TemporalMedianBlur
+  - Speed: Much-much quicker: TemporalMedianBlur special case: temporal radius=1 or 2, spatial radius=0) (C, SSE4.1, AVX2)
   - Pass frame properties when Avisynth interface>=8
   - Debug helper parameter 'opt': integer default -1
     <0: autodetect CPU
     0: C only (disable SSE2 and AVX2)
-    1: SSE2 (disable AVX2)
-    2: AVX2 (if available)
-  - Not done: (linux build support, pure C support, CMake build environment)
-  - Not done: (maybe special TemporalMedianBlur case: temporal rad=1, spatial rad=0)
+    1: SSE2 (disable SSE4.1 and AVX2)
+    2: SSE4 (disable AVX2)
+    3: AVX2
+  - (planned: linux build support, pure C support, CMake build environment)
 
 - 1.0 (20200402) - pinterf
   add high bitdepth support
