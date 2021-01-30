@@ -92,3 +92,25 @@ public:
   template<typename pixel_t, int bits_per_pixel, bool chroma>
   static void calculate_temporal_median(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
 };
+
+
+#ifdef MEDIANPROCESSOR_AVX2
+template<typename pixel_t>
+void calculate_temporal_median_sr0_tr1_avx2(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template<typename pixel_t>
+void calculate_temporal_median_sr0_tr2_avx2(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+#endif
+#ifdef MEDIANPROCESSOR_SSE2
+template<typename pixel_t>
+void calculate_temporal_median_sr0_tr1_sse4(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template<typename pixel_t>
+void calculate_temporal_median_sr0_tr2_sse4(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+#endif
+#ifdef MEDIANPROCESSOR_C
+template<typename pixel_t>
+void calculate_temporal_median_sr0_tr1_c(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template<typename pixel_t>
+void calculate_temporal_median_sr0_tr2_c(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+#endif
+
+

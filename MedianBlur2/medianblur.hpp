@@ -1,4 +1,7 @@
+#include "avisynth.h"
 #include <stdint.h>
+#include <cassert>
+#include <algorithm>
 
 static MB_FORCEINLINE int calculate_window_side_length(int radius, int x, int width) {
   int length = radius + 1;
@@ -44,12 +47,18 @@ uint32_t for TemporalMedian, independently from radius
 
 #ifdef MEDIANPROCESSOR_AVX2
 #define MEDIANPROC MedianProcessor_avx2
+#define MEDIANPROC_SR0_T1 calculate_temporal_median_sr0_tr1_avx2
+#define MEDIANPROC_SR0_T2 calculate_temporal_median_sr0_tr2_avx2
 #endif
 #ifdef MEDIANPROCESSOR_SSE2
 #define MEDIANPROC MedianProcessor_sse2
+#define MEDIANPROC_SR0_T1 calculate_temporal_median_sr0_tr1_sse4
+#define MEDIANPROC_SR0_T2 calculate_temporal_median_sr0_tr2_sse4
 #endif
 #ifdef MEDIANPROCESSOR_C
 #define MEDIANPROC MedianProcessor_c
+#define MEDIANPROC_SR0_T1 calculate_temporal_median_sr0_tr1_c
+#define MEDIANPROC_SR0_T2 calculate_temporal_median_sr0_tr2_c
 #endif
 
 #ifdef MEDIANPROCESSOR_C
@@ -531,3 +540,153 @@ void MEDIANPROC<T, histogram_resolution_bits, instruction_set>::calculate_tempor
 #endif
 }
 
+// special case for spatial radius 0 and temporal radius 1 (frame_count==3)
+template<typename pixel_t>
+#ifdef MEDIANPROCESSOR_SSE2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("sse4.1")))
+#endif
+#endif
+void MEDIANPROC_SR0_T1(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer) {
+  auto srcp0 = src_ptrs[0];
+  auto srcp1 = src_ptrs[1];
+  auto srcp2 = src_ptrs[2];
+  auto pitch0 = src_pitches[0];
+  auto pitch1 = src_pitches[1];
+  auto pitch2 = src_pitches[2];
+  for (int y = 0; y < height; ++y) {
+#ifdef MEDIANPROCESSOR_C
+    for (int x = 0; x < width; ++x) {
+      auto A = reinterpret_cast<const pixel_t*>(srcp0)[x];
+      auto B = reinterpret_cast<const pixel_t*>(srcp1)[x];
+      auto C = reinterpret_cast<const pixel_t*>(srcp2)[x];
+      auto t1 = std::min(A, B);
+      auto t2 = std::max(A, B);
+      auto t3 = std::min(t2, C);
+      auto median = std::max(t1, t3);
+      reinterpret_cast<pixel_t*>(dstp)[x] = median;
+    }
+#endif
+#ifdef MEDIANPROCESSOR_SSE2
+    for (int x = 0; x < width * sizeof(pixel_t); x += 16) {
+      auto A = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp0 + x));
+      auto B = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp1 + x));
+      auto C = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp2 + x));
+      auto median = simd_median<pixel_t>(A, B, C);
+      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x), median);
+    }
+#endif
+#ifdef MEDIANPROCESSOR_AVX2
+    for (int x = 0; x < width * sizeof(pixel_t); x += 32) {
+      auto A = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp0 + x));
+      auto B = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp1 + x));
+      auto C = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp2 + x));
+      //auto A = _mm256_loadu2_m128i(reinterpret_cast<const __m128i*>(srcp0 + x + 16), reinterpret_cast<const __m128i*>(srcp0 + x + 0));
+      //auto B = _mm256_loadu2_m128i(reinterpret_cast<const __m128i*>(srcp1 + x + 16), reinterpret_cast<const __m128i*>(srcp1 + x + 0));
+      //auto C = _mm256_loadu2_m128i(reinterpret_cast<const __m128i*>(srcp2 + x + 16), reinterpret_cast<const __m128i*>(srcp2 + x + 0));
+      auto median = simd_median<pixel_t>(A, B, C);
+      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x), _mm256_castsi256_si128(median));
+      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x + 16), _mm256_extracti128_si256(median,1));
+    }
+#endif
+    srcp0 += pitch0;
+    srcp1 += pitch1;
+    srcp2 += pitch2;
+    dstp += dst_pitch;
+  }
+
+#ifdef MEDIANPROCESSOR_AVX2
+  _mm256_zeroupper();
+#endif
+}
+
+// special case for spatial radius 0 and temporal radius 2 (frame_count==5)
+template<typename pixel_t>
+#ifdef MEDIANPROCESSOR_SSE2
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("sse4.1")))
+#endif
+#endif
+void MEDIANPROC_SR0_T2(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer) {
+  auto srcp0 = src_ptrs[0];
+  auto srcp1 = src_ptrs[1];
+  auto srcp2 = src_ptrs[2];
+  auto srcp3 = src_ptrs[3];
+  auto srcp4 = src_ptrs[4];
+  auto pitch0 = src_pitches[0];
+  auto pitch1 = src_pitches[1];
+  auto pitch2 = src_pitches[2];
+  auto pitch3 = src_pitches[3];
+  auto pitch4 = src_pitches[4];
+  for (int y = 0; y < height; ++y) {
+#ifdef MEDIANPROCESSOR_C
+    for (int x = 0; x < width; ++x) {
+      auto A = reinterpret_cast<const pixel_t*>(srcp0)[x];
+      auto B = reinterpret_cast<const pixel_t*>(srcp1)[x];
+      auto C = reinterpret_cast<const pixel_t*>(srcp2)[x];
+      auto D = reinterpret_cast<const pixel_t*>(srcp3)[x];
+      auto E = reinterpret_cast<const pixel_t*>(srcp4)[x];
+
+      auto f = std::max(std::min(A, B), std::min(C, D)); // discards lowest from first 4
+      auto g = std::min(std::max(A, B), std::max(C, D)); // discards biggest from first 4
+
+      auto t1 = std::min(f, g);
+      auto t2 = std::max(f, g);
+      auto t3 = std::min(t2, E);
+      auto median = std::max(t1, t3);
+      reinterpret_cast<pixel_t*>(dstp)[x] = median;
+    }
+#endif
+#ifdef MEDIANPROCESSOR_SSE2
+    for (int x = 0; x < width * sizeof(pixel_t); x += 16) {
+      auto A = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp0 + x));
+      auto B = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp1 + x));
+      auto C = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp2 + x));
+      auto D = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp3 + x));
+      auto E = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp4 + x));
+      auto median = simd_median5<pixel_t>(A, B, C, D, E);
+      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x), median);
+    }
+#endif
+#ifdef MEDIANPROCESSOR_AVX2
+    for (int x = 0; x < width * sizeof(pixel_t); x += 32) {
+      auto A = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp0 + x));
+      auto B = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp1 + x));
+      auto C = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp2 + x));
+      auto D = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp3 + x));
+      auto E = _mm256_load_si256(reinterpret_cast<const __m256i*>(srcp4 + x));
+      //auto A = _mm256_loadu2_m128i(reinterpret_cast<const __m128i*>(srcp0 + x + 16), reinterpret_cast<const __m128i*>(srcp0 + x + 0));
+      //auto B = _mm256_loadu2_m128i(reinterpret_cast<const __m128i*>(srcp1 + x + 16), reinterpret_cast<const __m128i*>(srcp1 + x + 0));
+      //auto C = _mm256_loadu2_m128i(reinterpret_cast<const __m128i*>(srcp2 + x + 16), reinterpret_cast<const __m128i*>(srcp2 + x + 0));
+      auto median = simd_median5<pixel_t>(A, B, C, D, E);
+      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x), _mm256_castsi256_si128(median));
+      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x + 16), _mm256_extracti128_si256(median, 1));
+    }
+#endif
+    srcp0 += pitch0;
+    srcp1 += pitch1;
+    srcp2 += pitch2;
+    srcp3 += pitch3;
+    srcp4 += pitch4;
+    dstp += dst_pitch;
+  }
+
+#ifdef MEDIANPROCESSOR_AVX2
+  _mm256_zeroupper();
+#endif
+}
+
+
+template<class V>
+inline V median(const V& a, const V& b, const V& c)
+{
+  return max(min(a, b), min(c, max(a, b)));
+}
+
+template<class V>
+inline V median(const V& a, const V& b, const V& c, const V& d, const V& e)
+{
+  V f = max(min(a, b), min(c, d)); // discards lowest from first 4
+  V g = min(max(a, b), max(c, d)); // discards biggest from first 4
+  return median(e, f, g);
+}

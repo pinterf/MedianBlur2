@@ -65,6 +65,72 @@ MB_FORCEINLINE __m256i simd_subs<int32_t>(const __m256i& a, const __m256i& b) {
   return _mm256_sub_epi32(a, b);
 }
 
+template<typename pixel_t>
+static MB_FORCEINLINE __m256i simd_median(const __m256i& a, const __m256i& b, const __m256i& c) {
+  assert(false);
+}
+
+template<>
+MB_FORCEINLINE __m256i simd_median<uint8_t>(const __m256i& a, const __m256i& b, const __m256i& c) {
+  auto t1 = _mm256_min_epu8(a, b);
+  auto t2 = _mm256_max_epu8(a, b);
+  auto t3 = _mm256_min_epu8(t2, c);
+  auto median = _mm256_max_epu8(t1, t3);
+  return median;
+}
+
+template<>
+MB_FORCEINLINE __m256i simd_median<uint16_t>(const __m256i& a, const __m256i& b, const __m256i& c) {
+  auto t1 = _mm256_min_epu16(a, b);
+  auto t2 = _mm256_max_epu16(a, b);
+  auto t3 = _mm256_min_epu16(t2, c);
+  auto median = _mm256_max_epu16(t1, t3);
+  return median;
+}
+
+template<>
+MB_FORCEINLINE __m256i simd_median<float>(const __m256i& aa, const __m256i& bb, const __m256i& cc) {
+  auto a = _mm256_castsi256_ps(aa);
+  auto b = _mm256_castsi256_ps(bb);
+  auto c = _mm256_castsi256_ps(cc);
+  auto t1 = _mm256_min_ps(a, b);
+  auto t2 = _mm256_max_ps(a, b);
+  auto t3 = _mm256_min_ps(t2, c);
+  auto median = _mm256_max_ps(t1, t3);
+  return _mm256_castps_si256(median);
+}
+
+template<typename pixel_t>
+MB_FORCEINLINE __m256i simd_median5(const __m256i& a, const __m256i& b, const __m256i& c, const __m256i& d, const __m256i& e) {
+  assert(false);
+}
+
+template<>
+MB_FORCEINLINE __m256i simd_median5<uint8_t>(const __m256i& a, const __m256i& b, const __m256i& c, const __m256i& d, const __m256i& e) {
+  auto f = _mm256_max_epu8(_mm256_min_epu8(a, b), _mm256_min_epu8(c, d)); // discards lowest from first 4
+  auto g = _mm256_min_epu8(_mm256_max_epu8(a, b), _mm256_max_epu8(c, d)); // discards biggest from first 4
+  return simd_median<uint8_t>(e, f, g);
+}
+
+template<>
+MB_FORCEINLINE __m256i simd_median5<uint16_t>(const __m256i& a, const __m256i& b, const __m256i& c, const __m256i& d, const __m256i& e) {
+  auto f = _mm256_max_epu16(_mm256_min_epu16(a, b), _mm256_min_epu16(c, d)); // discards lowest from first 4
+  auto g = _mm256_min_epu16(_mm256_max_epu16(a, b), _mm256_max_epu16(c, d)); // discards biggest from first 4
+  return simd_median<uint16_t>(e, f, g);
+}
+
+template<>
+MB_FORCEINLINE __m256i simd_median5<float>(const __m256i& aa, const __m256i& bb, const __m256i& cc, const __m256i& dd, const __m256i& ee) {
+  auto a = _mm256_castsi256_ps(aa);
+  auto b = _mm256_castsi256_ps(bb);
+  auto c = _mm256_castsi256_ps(cc);
+  auto d = _mm256_castsi256_ps(dd);
+  auto e = _mm256_castsi256_ps(ee);
+  auto f = _mm256_max_ps(_mm256_min_ps(a, b), _mm256_min_ps(c, d)); // discards lowest from first 4
+  auto g = _mm256_min_ps(_mm256_max_ps(a, b), _mm256_max_ps(c, d)); // discards biggest from first 4
+  return simd_median<float>(_mm256_castps_si256(e), _mm256_castps_si256(f), _mm256_castps_si256(g));
+}
+
 #define MEDIANPROCESSOR_AVX2
 #include "medianblur.hpp"
 #undef MEDIANPROCESSOR_AVX2
@@ -93,5 +159,14 @@ template void MedianProcessor_avx2<int32_t, 14, InstructionSet::AVX2>::calculate
 template void MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 16, false>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
 template void MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<float, 16, false>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
 template void MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<float, 16, true>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+
+template void calculate_temporal_median_sr0_tr1_avx2<uint8_t>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template void calculate_temporal_median_sr0_tr1_avx2<uint16_t>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template void calculate_temporal_median_sr0_tr1_avx2<float>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+
+template void calculate_temporal_median_sr0_tr2_avx2<uint8_t>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template void calculate_temporal_median_sr0_tr2_avx2<uint16_t>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+template void calculate_temporal_median_sr0_tr2_avx2<float>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
+
 
 // n/a

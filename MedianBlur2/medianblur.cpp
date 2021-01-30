@@ -72,12 +72,15 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
     int radii[] = { radius_y, radius_u, radius_v, 0 };
 
     bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
+    bool sse41 = !!(env->GetCPUFlags() & CPUF_SSE4_1);
     bool avx2 = !!(env->GetCPUFlags() & CPUF_AVX2);
     if (opt_ >= 0) {
       if (opt_ <= 0)
         sse2 = false;
       if (opt_ <= 1)
-          avx2 = false;
+        sse41 = false;
+      if (opt_ <= 2)
+        avx2 = false;
     }
 
     int hist_size = 0;
@@ -307,8 +310,8 @@ private:
     int radius_temp_;
     int opt_;
     void *buffer_;
-    decltype(&MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>) processor_;
-    decltype(&MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>) processor_chroma_;
+    decltype(&MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>) processors_[4];
+    decltype(&MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>) processors_chroma_[4];
 
     bool has_at_least_v8; // v8 interface frameprop copy support
 
@@ -339,88 +342,177 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     const int planesRGB[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
     const int* planes = vi.IsYUV() || vi.IsYUVA() ? planesYUV : planesRGB;
 
+    buffer_ = nullptr;
+
     // alpha is copied
     int radii[] = { radius_y, radius_u, radius_v, 0 };
 
     bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
+    bool sse41 = !!(env->GetCPUFlags() & CPUF_SSE4_1);
     bool avx2 = !!(env->GetCPUFlags() & CPUF_AVX2);
     if (opt_ >= 0) {
       if (opt_ <= 0)
         sse2 = false;
       if (opt_ <= 1)
+        sse41 = false;
+      if (opt_ <= 2)
         avx2 = false;
     }
 
     for (int i = 0; i < vi.NumComponents(); ++i) {
-        if (radii[i] < 0) {
-            continue;
+      if (radii[i] < 0) {
+        continue;
+      }
+      int plane = planes[i];
+      int width = vi.width >> vi.GetPlaneWidthSubsampling(plane);
+      int height = vi.height >> vi.GetPlaneHeightSubsampling(plane);
+      int core_size = radii[i] * 2 + 1;
+      if (width < core_size || height < core_size) {
+        env->ThrowError("MedianBlurTemp: image is too small for this radius!");
+      }
+
+      // all counter accumulators are 32 bit ints, no need to differentiate by planes
+      processors_chroma_[i] = nullptr;
+
+      if (radii[i] == 0 && radius_temp == 1) {
+        // special case: spatial radius 0, temporal radius = 1
+        if (avx2) {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &calculate_temporal_median_sr0_tr1_avx2<uint8_t>; break;
+          case 10:
+          case 12:
+          case 14:
+          case 16: processors_[i] = &calculate_temporal_median_sr0_tr1_avx2<uint16_t>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &calculate_temporal_median_sr0_tr1_avx2<float>; break;
+            break;
+          }
         }
-        int plane = planes[i];
-        int width = vi.width >> vi.GetPlaneWidthSubsampling(plane);
-        int height = vi.height >> vi.GetPlaneHeightSubsampling(plane);
-        int core_size = radii[i]*2 + 1;
-        if (width < core_size || height < core_size) {
-            env->ThrowError("MedianBlurTemp: image is too small for this radius!");
+        else if (sse41) {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &calculate_temporal_median_sr0_tr1_sse4<uint8_t>; break;
+          case 10:
+          case 12:
+          case 14:
+          case 16: processors_[i] = &calculate_temporal_median_sr0_tr1_sse4<uint16_t>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &calculate_temporal_median_sr0_tr1_sse4<float>; break;
+            break;
+          }
         }
-    }
+        else {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &calculate_temporal_median_sr0_tr1_c<uint8_t>; break;
+          case 10:
+          case 12:
+          case 14:
+          case 16: processors_[i] = &calculate_temporal_median_sr0_tr1_c<uint16_t>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &calculate_temporal_median_sr0_tr1_c<float>; break;
+            break;
+          }
+        }
 
-    // all counter accumulators are 32 bit ints, no need to differentiate by planes
-    processor_chroma_ = nullptr;
+      }
+      else if (radii[i] == 0 && radius_temp == 2) {
+        // special case: spatial radius 0, temporal radius = 2
+        if (avx2) {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &calculate_temporal_median_sr0_tr2_avx2<uint8_t>; break;
+          case 10:
+          case 12:
+          case 14:
+          case 16: processors_[i] = &calculate_temporal_median_sr0_tr2_avx2<uint16_t>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &calculate_temporal_median_sr0_tr2_avx2<float>; break;
+            break;
+          }
+        }
+        else if (sse41) {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &calculate_temporal_median_sr0_tr2_sse4<uint8_t>; break;
+          case 10:
+          case 12:
+          case 14:
+          case 16: processors_[i] = &calculate_temporal_median_sr0_tr2_sse4<uint16_t>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &calculate_temporal_median_sr0_tr2_sse4<float>; break;
+            break;
+          }
+        }
+        else {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &calculate_temporal_median_sr0_tr2_c<uint8_t>; break;
+          case 10:
+          case 12:
+          case 14:
+          case 16: processors_[i] = &calculate_temporal_median_sr0_tr2_c<uint16_t>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &calculate_temporal_median_sr0_tr2_c<float>; break;
+            break;
+          }
+        }
 
-    if (avx2) {
-      switch (bits_per_pixel) {
-      case 8: processor_ = &MedianProcessor_avx2<int32_t, 8, InstructionSet::AVX2>::calculate_temporal_median<uint8_t, 8, false>; break;
-      case 10: processor_ = &MedianProcessor_avx2<int32_t, 10, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 10, false>; break;
-      case 12: processor_ = &MedianProcessor_avx2<int32_t, 12, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 12, false>; break;
-      case 14: processor_ = &MedianProcessor_avx2<int32_t, 14, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 14, false>; break;
-      case 16: processor_ = &MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 16, false>; break;
-      default: // float histogram is simulated on 16 bits
-        processor_ = &MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<float, 16, false>;
-        processor_chroma_ = &MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<float, 16, true>;
-        break;
       }
-    }
-    else if (sse2) {
-      switch (bits_per_pixel) {
-      case 8: processor_ = &MedianProcessor_sse2<int32_t, 8, InstructionSet::SSE2>::calculate_temporal_median<uint8_t, 8, false>; break;
-      case 10: processor_ = &MedianProcessor_sse2<int32_t, 10, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 10, false>; break;
-      case 12: processor_ = &MedianProcessor_sse2<int32_t, 12, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 12, false>; break;
-      case 14: processor_ = &MedianProcessor_sse2<int32_t, 14, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 14, false>; break;
-      case 16: processor_ = &MedianProcessor_sse2<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 16, false>; break;
-      default: // float histogram is simulated on 16 bits
-        processor_ = &MedianProcessor_sse2<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 16, false>;
-        processor_chroma_ = &MedianProcessor_sse2<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 16, true>;
-        break;
-      }
-    }
-    else {
-      switch (bits_per_pixel) {
-      case 8: processor_ = &MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>; break;
-      case 10: processor_ = &MedianProcessor_c<int32_t, 10, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 10, false>; break;
-      case 12: processor_ = &MedianProcessor_c<int32_t, 12, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 12, false>; break;
-      case 14: processor_ = &MedianProcessor_c<int32_t, 14, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 14, false>; break;
-      case 16: processor_ = &MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 16, false>; break;
-      default: // float histogram is simulated on 16 bits
-        processor_ = &MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 16, false>;
-        processor_chroma_ = &MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 16, true>;
-        break;
-      }
-    }
+      else {
+        if (avx2) {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &MedianProcessor_avx2<int32_t, 8, InstructionSet::AVX2>::calculate_temporal_median<uint8_t, 8, false>; break;
+          case 10: processors_[i] = &MedianProcessor_avx2<int32_t, 10, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 10, false>; break;
+          case 12: processors_[i] = &MedianProcessor_avx2<int32_t, 12, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 12, false>; break;
+          case 14: processors_[i] = &MedianProcessor_avx2<int32_t, 14, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 14, false>; break;
+          case 16: processors_[i] = &MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<uint16_t, 16, false>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<float, 16, false>;
+            processors_chroma_[i] = &MedianProcessor_avx2<int32_t, 16, InstructionSet::AVX2>::calculate_temporal_median<float, 16, true>;
+            break;
+          }
+        }
+        else if (sse2) {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &MedianProcessor_sse2<int32_t, 8, InstructionSet::SSE2>::calculate_temporal_median<uint8_t, 8, false>; break;
+          case 10: processors_[i] = &MedianProcessor_sse2<int32_t, 10, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 10, false>; break;
+          case 12: processors_[i] = &MedianProcessor_sse2<int32_t, 12, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 12, false>; break;
+          case 14: processors_[i] = &MedianProcessor_sse2<int32_t, 14, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 14, false>; break;
+          case 16: processors_[i] = &MedianProcessor_sse2<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<uint16_t, 16, false>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &MedianProcessor_sse2<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 16, false>;
+            processors_chroma_[i] = &MedianProcessor_sse2<int32_t, 16, InstructionSet::SSE2>::calculate_temporal_median<float, 16, true>;
+            break;
+          }
+        }
+        else {
+          switch (bits_per_pixel) {
+          case 8: processors_[i] = &MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>; break;
+          case 10: processors_[i] = &MedianProcessor_c<int32_t, 10, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 10, false>; break;
+          case 12: processors_[i] = &MedianProcessor_c<int32_t, 12, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 12, false>; break;
+          case 14: processors_[i] = &MedianProcessor_c<int32_t, 14, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 14, false>; break;
+          case 16: processors_[i] = &MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 16, false>; break;
+          default: // float histogram is simulated on 16 bits
+            processors_[i] = &MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 16, false>;
+            processors_chroma_[i] = &MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::calculate_temporal_median<float, 16, true>;
+            break;
+          }
+        }
 
-    int buffersize;
-    switch (bits_per_pixel) {
-    case 8: buffersize = MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
-    case 10: buffersize = MedianProcessor_c<int32_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
-    case 12: buffersize = MedianProcessor_c<int32_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
-    case 14: buffersize = MedianProcessor_c<int32_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
-    case 16: buffersize = MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
-    default: // 32 bit is simulated on 16 bit histogram
-      buffersize = MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
-    }
-    
-    buffer_ = _aligned_malloc(vi.width  * buffersize, 32);
-    if (!buffer_) {
-        env->ThrowError("MedianBlurTemp: Couldn't callocate buffer.");
+        int buffersize;
+        switch (bits_per_pixel) {
+        case 8: buffersize = MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 10: buffersize = MedianProcessor_c<int32_t, 10, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 12: buffersize = MedianProcessor_c<int32_t, 12, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 14: buffersize = MedianProcessor_c<int32_t, 14, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        case 16: buffersize = MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        default: // 32 bit is simulated on 16 bit histogram
+          buffersize = MedianProcessor_c<int32_t, 16, InstructionSet::PLAIN_C>::HISTOGRAM_SIZE; break;
+        }
+
+        if (buffer_ == nullptr) {
+          buffer_ = _aligned_malloc(vi.width * buffersize, 32);
+          if (!buffer_) {
+            env->ThrowError("MedianBlurTemp: Couldn't callocate buffer.");
+          }
+        }
+      }
     }
 }
 
@@ -467,11 +559,11 @@ PVideoFrame MedianBlurTemp::GetFrame(int n, IScriptEnvironment *env) {
         }
 
         if (radius >= 0) {
-          if (chroma && processor_chroma_ != nullptr)
-            processor_chroma_(dst->GetWritePtr(plane), dst->GetPitch(plane),
+          if (chroma && processors_chroma_[i] != nullptr)
+            processors_chroma_[i](dst->GetWritePtr(plane), dst->GetPitch(plane),
               src_ptrs, src_pitches, frame_count, realwidth, height, radius, buffer_);
           else
-            processor_(dst->GetWritePtr(plane), dst->GetPitch(plane),
+            processors_[i](dst->GetWritePtr(plane), dst->GetPitch(plane),
               src_ptrs, src_pitches, frame_count, realwidth, height, radius, buffer_);
         } else if (radius == -1) {
             env->BitBlt(dst->GetWritePtr(plane), dst->GetPitch(plane),
