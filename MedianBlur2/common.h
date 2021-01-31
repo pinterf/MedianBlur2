@@ -30,8 +30,10 @@
 
 enum class InstructionSet
 {
+#ifdef ENABLE_INTEL_SIMD
   AVX2,
   SSE2,
+#endif
   PLAIN_C
 };
 

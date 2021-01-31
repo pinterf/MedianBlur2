@@ -11,13 +11,15 @@
 #include "medianblur.hpp"
 #undef MEDIANPROCESSOR_C
 
+#ifdef ENABLE_INTEL_SIMD
+#include <emmintrin.h>
 #include "medianblur_avx2.h"
 #include "medianblur_sse2.h"
+#endif
 #include <math.h>
 #include <assert.h>
 #include <stdint.h>
 #include <algorithm>
-#include <emmintrin.h>
 #include "special.h"
 #include <memory>
 #include <functional>
@@ -74,6 +76,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
     // alpha is copied
     int radii[] = { radius_y, radius_u, radius_v, 0 };
 
+#ifdef ENABLE_INTEL_SIMD
     bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
     bool sse41 = !!(env->GetCPUFlags() & CPUF_SSE4_1);
     bool avx2 = !!(env->GetCPUFlags() & CPUF_AVX2);
@@ -85,6 +88,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
       if (opt_ <= 2)
         avx2 = false;
     }
+#endif
 
     int hist_size = 0;
     for (int i = 0; i < vi.NumComponents(); ++i) {
@@ -100,6 +104,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
         env->ThrowError("MedianBlur: image is too small for this radius!");
       }
 
+#ifdef ENABLE_INTEL_SIMD
       //special cases make sense only when SSE2 is available, otherwise generic routine will be faster
       if (bits_per_pixel == 8 && radii[i] == 1 && sse2 && width > 16) {
         processors_[i] = &calculate_median_r1;
@@ -107,9 +112,12 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
       else if (bits_per_pixel == 8 && radii[i] == 2 && sse2 && width > 16) {
         processors_[i] = &calculate_median_r2;
       }
-      else if (radii[i] < 8) {
+      else
+#endif
+      if (radii[i] < 8) {
         // radius<8, processing width <= 7+1+7
         // max pixel count for a histogram entry <= 15x15, counters (bins) fit in a byte, using uint8_t for counter type
+#ifdef ENABLE_INTEL_SIMD
         if (avx2 && bits_per_pixel > 8) {
           // no avx for small radii and 8 bit. uint8_t counters will fit in sse2
           switch (bits_per_pixel) {
@@ -145,7 +153,9 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
             break;
           }
         }
-        else {
+        else 
+#endif // #ifdef ENABLE_INTEL_SIMD
+        {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &MedianProcessor_c<uint8_t, 8, InstructionSet::PLAIN_C>::calculate_median<uint8_t, 8, false>; break;
           case 10: processors_[i] = &MedianProcessor_c<uint8_t, 10, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 10, false>; break;
@@ -179,6 +189,7 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
       else {
         // radius>=8, processing width >= 8+1+8
         // max pixel count for a histogram entry >= 17x17, counters does not fit in a byte, using uint16_t for counter type
+#ifdef ENABLE_INTEL_SIMD
         if (avx2) {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &MedianProcessor_avx2<uint16_t, 8, InstructionSet::AVX2>::calculate_median<uint8_t, 8, false>; break;
@@ -213,7 +224,9 @@ MedianBlur::MedianBlur(PClip child, int radius_y, int radius_u, int radius_v, in
             break;
           }
         }
-        else {
+        else 
+#endif // ENABLE_INTEL_SIMD
+        {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &MedianProcessor_c<uint16_t, 8, InstructionSet::PLAIN_C>::calculate_median<uint8_t, 8, false>; break;
           case 10: processors_[i] = &MedianProcessor_c<uint16_t, 10, InstructionSet::PLAIN_C>::calculate_median<uint16_t, 10, false>; break;
@@ -350,6 +363,7 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
     // alpha is copied
     int radii[] = { radius_y, radius_u, radius_v, 0 };
 
+#ifdef ENABLE_INTEL_SIMD
     bool sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
     bool sse41 = !!(env->GetCPUFlags() & CPUF_SSE4_1);
     bool avx2 = !!(env->GetCPUFlags() & CPUF_AVX2);
@@ -361,6 +375,7 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
       if (opt_ <= 2)
         avx2 = false;
     }
+#endif
 
     for (int i = 0; i < vi.NumComponents(); ++i) {
       if (radii[i] < 0) {
@@ -379,6 +394,7 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
 
       if (radii[i] == 0 && radius_temp == 1) {
         // special case: spatial radius 0, temporal radius = 1
+#ifdef ENABLE_INTEL_SIMD
         if (avx2) {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &calculate_temporal_median_sr0_tr1_avx2<uint8_t>; break;
@@ -403,7 +419,9 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
             break;
           }
         }
-        else {
+        else 
+#endif // ENABLE_INTEL_SIMD
+        {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &calculate_temporal_median_sr0_tr1_c<uint8_t>; break;
           case 10:
@@ -419,6 +437,7 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
       }
       else if (radii[i] == 0 && radius_temp == 2) {
         // special case: spatial radius 0, temporal radius = 2
+#ifdef ENABLE_INTEL_SIMD
         if (avx2) {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &calculate_temporal_median_sr0_tr2_avx2<uint8_t>; break;
@@ -443,7 +462,9 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
             break;
           }
         }
-        else {
+        else 
+#endif
+        {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &calculate_temporal_median_sr0_tr2_c<uint8_t>; break;
           case 10:
@@ -458,6 +479,7 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
 
       }
       else {
+#ifdef ENABLE_INTEL_SIMD
         if (avx2) {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &MedianProcessor_avx2<int32_t, 8, InstructionSet::AVX2>::calculate_temporal_median<uint8_t, 8, false>; break;
@@ -484,7 +506,9 @@ MedianBlurTemp::MedianBlurTemp(PClip child, int radius_y, int radius_u, int radi
             break;
           }
         }
-        else {
+        else 
+#endif // ENABLE_INTEL_SIMD
+        {
           switch (bits_per_pixel) {
           case 8: processors_[i] = &MedianProcessor_c<int32_t, 8, InstructionSet::PLAIN_C>::calculate_temporal_median<uint8_t, 8, false>; break;
           case 10: processors_[i] = &MedianProcessor_c<int32_t, 10, InstructionSet::PLAIN_C>::calculate_temporal_median<uint16_t, 10, false>; break;
