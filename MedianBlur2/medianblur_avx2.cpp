@@ -28,6 +28,7 @@
 template<typename T>
 static MB_FORCEINLINE __m256i simd_adds(const __m256i& a, const __m256i& b) {
   assert(false);
+  return _mm256_setzero_si256();
 }
 
 template<>
@@ -48,6 +49,7 @@ MB_FORCEINLINE __m256i simd_adds<int32_t>(const __m256i& a, const __m256i& b) {
 template<typename T>
 MB_FORCEINLINE __m256i simd_subs(const __m256i& a, const __m256i& b) {
   assert(false);
+  return _mm256_setzero_si256();
 }
 
 template<>
@@ -68,6 +70,7 @@ MB_FORCEINLINE __m256i simd_subs<int32_t>(const __m256i& a, const __m256i& b) {
 template<typename pixel_t>
 static MB_FORCEINLINE __m256i simd_median(const __m256i& a, const __m256i& b, const __m256i& c) {
   assert(false);
+  return _mm256_setzero_si256();
 }
 
 template<>
@@ -103,6 +106,7 @@ MB_FORCEINLINE __m256i simd_median<float>(const __m256i& aa, const __m256i& bb, 
 template<typename pixel_t>
 MB_FORCEINLINE __m256i simd_median5(const __m256i& a, const __m256i& b, const __m256i& c, const __m256i& d, const __m256i& e) {
   assert(false);
+  return _mm256_setzero_si256();
 }
 
 template<>

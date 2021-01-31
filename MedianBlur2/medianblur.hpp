@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <cassert>
 #include <algorithm>
+#include <cstring>
 
 static MB_FORCEINLINE int calculate_window_side_length(int radius, int x, int width) {
   int length = radius + 1;
@@ -572,7 +573,7 @@ void MEDIANPROC_SR0_T1(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, c
       auto A = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp0 + x));
       auto B = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp1 + x));
       auto C = _mm_load_si128(reinterpret_cast<const __m128i*>(srcp2 + x));
-      auto median = simd_median<pixel_t>(A, B, C);
+      auto median = simd_median_sse4<pixel_t>(A, B, C);
       _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x), median);
     }
 #endif
