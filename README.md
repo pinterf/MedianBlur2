@@ -31,7 +31,13 @@ Radii 1 and 2 are special case only for 8 bits as of v1.0.
 
 ### Change log ###
 
-- (1.1) (20210130) - pinterf
+- (no version change) (20210131)
+  - Source to compile with GCC and on Linux (tested on Ubuntu 19.10 WSL GCC 9.21, Windows GCC 10.2)
+  - Add CMake build system (GCC/Linux)
+  - Build instructions in README.md
+  - Support non-x86 systems (C-only) by CMake: use ENABLE_INTEL_SIMD off
+
+- 1.1 (20210130) - pinterf
   - Speed: SSE2 and AVX2 for 10+ bits (generic case, MedianBlur)
   - Speed: SSE2 and AVX2 for TemporalMedianBlur
   - Speed: Much-much quicker: TemporalMedianBlur special case: temporal radius=1 or 2, spatial radius=0) (C, SSE4.1, AVX2)
@@ -60,3 +66,44 @@ This project is licensed under the [MIT license][mit_license]. Binaries are [GPL
 
 [mit_license]: http://opensource.org/licenses/MIT
 [gpl_v2]: http://www.gnu.org/licenses/gpl-2.0.html
+
+Build instructions
+==================
+VS2019: 
+  use IDE
+
+Windows GCC (mingw installed by msys2):
+  from the 'build' folder under project root:
+
+  del ..\CMakeCache.txt
+  cmake .. -G "MinGW Makefiles" -DENABLE_INTEL_SIMD:bool=on
+  @rem test: cmake .. -G "MinGW Makefiles" -DENABLE_INTEL_SIMD:bool=off
+  cmake --build . --config Release  
+
+Linux
+* Clone repo
+    
+        git clone https://github.com/pinterf/MedianBlur2
+        cd MedianBlur2
+        cmake -B build -S .
+        cmake --build build
+
+  Possible option test for C only on x86 arhitectures:
+        cmake -B build -S . -DENABLE_INTEL_SIMD:bool=off
+        cmake --build build
+
+        Note: ENABLE_INTEL_SIMD is automatically off for non x86 arhitectures and ON for x86
+
+* Find binaries at
+    
+        build/MedianBlur2/libmedianblur2.so
+
+* Install binaries
+
+        cd build
+        sudo make install
+
+Links
+=====
+Project: https://github.com/pinterf/MedianBlur2
+Additional info: http://avisynth.nl/index.php/MedianBlur2
