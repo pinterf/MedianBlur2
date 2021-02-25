@@ -30,7 +30,7 @@
 
 enum class InstructionSet
 {
-#ifdef ENABLE_INTEL_SIMD
+#ifdef INTEL_INTRINSICS
   AVX2,
   SSE2,
 #endif

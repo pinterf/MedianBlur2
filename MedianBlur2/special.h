@@ -1,7 +1,7 @@
 #include "common.h"
 #include <stdint.h>
 
-#ifdef ENABLE_INTEL_SIMD
+#ifdef INTEL_INTRINSICS
 
 #include "emmintrin.h"
 
@@ -269,4 +269,4 @@ static void calculate_median_r2(uint8_t* dstp, const uint8_t* srcp, int dst_pitc
     calculate_partial_median<false, true, false, true>(dstp+width-2, srcp+width-2, dst_pitch, src_pitch, 2, 2, 2);
 }
 
-#endif // ENABLE_INTEL_SIMD
+#endif // INTEL_INTRINSICS

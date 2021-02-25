@@ -1,6 +1,10 @@
 #include <stdint.h>
 #include <memory>
 
+#if defined(_WIN32) && !defined(INTEL_INTRINSICS)
+#error Forgot to set INTEL_INTRINSICS? Comment out this line if not
+#endif
+
 /*
 medianblur.h
 

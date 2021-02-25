@@ -1,4 +1,4 @@
-#ifdef ENABLE_INTEL_SIMD
+#ifdef INTEL_INTRINSICS
 #include "avisynth.h"
 #include "medianblur_sse2.h"
 
@@ -228,4 +228,4 @@ __attribute__((__target__("sse4.1")))
 #endif
 void calculate_temporal_median_sr0_tr2_sse4<float>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
 
-#endif // ENABLE_INTEL_SIMD
+#endif // INTEL_INTRINSICS

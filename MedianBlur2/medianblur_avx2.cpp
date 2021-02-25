@@ -1,4 +1,4 @@
-#ifdef ENABLE_INTEL_SIMD
+#ifdef INTEL_INTRINSICS
 
 #include "avisynth.h"
 #include "medianblur_avx2.h"
@@ -174,5 +174,5 @@ template void calculate_temporal_median_sr0_tr2_avx2<uint8_t>(uint8_t* dstp, int
 template void calculate_temporal_median_sr0_tr2_avx2<uint16_t>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
 template void calculate_temporal_median_sr0_tr2_avx2<float>(uint8_t* dstp, int dst_pitch, const uint8_t** src_ptrs, const int* src_pitches, int frames_count, int width, int height, int radius, void* buffer);
 
-#endif // ENABLE_INTEL_SIMD
+#endif // INTEL_INTRINSICS
 
